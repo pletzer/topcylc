@@ -1,8 +1,11 @@
 #!jinja2
 
-{% set ENV = 'intel/2017a', 'intel/2022a' 'foss/2023a' %}
-{% set FORT = 'ifort', 'ifort', 'gfortran' %}
-{% set N = ENV | length %}
+{% set toolchain_name = 'intel', 'intel', 'foss' %}
+{% set toolchain_version = '2017a', '2022a', '2023a' %}
+{% set fc = 'ifort', 'ifort', 'gfortran' %}
+{% set N = toolchain_name | length %}
+{% set topnet_src = '' %}
+{% set build_dir = '' %}
 
 [scheduling]
   [[graph]]
@@ -18,6 +21,16 @@
 
   [[build_{{ I }}]]
     script = """
+      cd {{ build_dir }}
+      bdir={{ toolchain_name[I] }}-{{toolchain_version[I] }}
+      rm $bdir
+      mkdir -p $bdir
+      cd $bdir
+      module load CMake
+      module load "{{ toolchain_name[I] }}/{{toolchain_version[I] }}"
+      FC={{ fc[I] }} cmake {{ topnet_src }}
+      make clean
+      make
     """
  
   [[run_{{ I }}]]
