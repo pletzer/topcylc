@@ -1,0 +1,33 @@
+#!jinja2
+
+{% set ENV = 'intel/2017a', 'intel/2022a' 'foss/2023a' %}
+{% set FORT = 'ifort', 'ifort', 'gfortran' %}
+{% set N = ENV | length %}
+
+[scheduling]
+  [[graph]]
+    R1 = """
+{% for I in range(N) %}
+     build_{{ I }} => run_{{ I }} => check_{{ I }}
+{% endfor %}
+  """
+
+[runtime]
+
+{% for I in range(N) %}
+
+  [[build_{{ I }}]]
+    script = """
+    """
+ 
+  [[run_{{ I }}]]
+    platform = mahuika-slurm
+    script = """
+    """
+    [[[directives]]]
+      --time = 00:10:00
+
+  [[check_{{ I }}]]
+    script = """
+    """
+{% endfor %}
