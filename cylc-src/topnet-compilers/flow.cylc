@@ -60,16 +60,33 @@ module load netCDF-Fortran/{{ toolchain_name[I] }}
 cd {{ build_dir }}/{{ toolchain_name[I] }}/run
 module load Python
 
-python {{ build_dir }}/{{ toolchain_name[I] }}/scripts/plot_tseries.py -n output/tseries*.nc -v mod_streamq -o mod_streamq.png >& plot_tseries-out.txt
+python {{ topnet_src }}/scripts/plot_tseries.py -n output/tseries*.nc -v mod_streamq -o mod_streamq.png >& plot_tseries-out.txt
+cat plot_tseries-out.txt
 
 # get the checksum
 checksum=$(cat plot_tseries-out.txt | perl -ne 'if(/checksum\:\s*([^\s]*)/){print $1;}')
 
 # use the first run as reference
-ref_checksum="(cat {{ build_dir }}/{{ toolchain_name[0] }}/run/output/tseries-out.txt | perl -ne 'if(/checksum\:\s*([^\s]*)/){print $1;}')"
+python {{ topnet_src }}/scripts/plot_tseries.py -n {{ build_dir }}/{{ toolchain_name[0] }}/run/output/tseries*.nc -v mod_streamq -o mod_streamq.png >& plot_tseries-out-ref.txt
+cat plot_tseries-out-ref.txt
 
-# compare checksum
-python -c "diff = abs(${checksum} - ${ref_checksum});if diff > 1.e10:print('FAIL')"
+# get the reference checksum
+ref_checksum="(cat plot_tseries-out-ref.txt | perl -ne 'if(/checksum\:\s*([^\s]*)/){print $1;}')"
 
+cat > compare_checksums.py << EOF
+import sys
+
+diff = ${checksum} - ${ref_checksum}
+print(f'diff = {diff}')
+if abs(diff) > 1.e-6:
+    print('FAILURE')
+    sys.exit(1)
+else:
+    print('SUCCESS')
+    sys.exit(0)
+EOF
+
+# compare checksums
+python compare_checksums.py
     """
 {% endfor %}
