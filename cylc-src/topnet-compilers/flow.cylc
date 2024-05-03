@@ -5,7 +5,7 @@
 {% set topnet_src = '/nesi/nobackup/pletzera/topnet-code/topnet-merge_TOP-83_Evap_with_ETI_Snow-GW_ap_pointer/' %}
 {% set build_dir = '/nesi/nobackup/pletzera/topnet_runs' %}
 {% set input_dir = '/nesi/nobackup/pletzera/topnet_2024/runs/zammit/latest-intel-milan/' %}
-
+{% set reference_dir = '/nesi/nobackup/pletzera/topnet_runs/reference' %}
 {% set N = toolchain_name | length %}
 
 [scheduling]
@@ -43,15 +43,27 @@ mkdir run
 cd run
 cp {{ input_dir }}/io_paths.nml .
 cp {{ input_dir }}/test.nml .
-
+mkdir output restart
 module load netCDF-Fortran/{{ toolchain_name[I] }}
 
 {{ build_dir }}/{{ toolchain_name[I] }}/source/topnet test.nml >& topnet-out.txt
     """
     [[[directives]]]
-      --time = 00:10:00
+      --time = 00:20:00
 
   [[check_{{ I }}]]
     script = """
+cd {{ build_dir }}/{{ toolchain_name[I] }}
+module load Python
+
+python {{ build_dir }}/{{ toolchain_name[I] }}/scripts/plot_tseries.py -n output/tseries*.nc -v mod_streamq -o mod_streamq.png >& plot_tseries-out.txt
+
+# get the checksum
+checksum=$(cat plot_tseries-out.txt | perl -ne 'if(/checksum\:\s*([^\s]*)/){print $1;}')
+ref_checksum="(cat {{ reference_dir }}/tseries-out.txt | perl -ne 'if(/checksum\:\s*([^\s]*)/){print $1;}')"
+
+# compare checksum
+python -c "diff = abs(${checksum} - ${ref_checksum});if diff > 1.e10:print('FAIL')"
+
     """
 {% endfor %}
