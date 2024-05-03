@@ -1,11 +1,11 @@
 #!jinja2
 
-{% set toolchain_name = 'intel', 'intel', 'foss' %}
-{% set toolchain_version = '2017a', '2022a', '2023a' %}
+{% set toolchain_name = '4.4.4-intel-2017a', '4.6.0-iimpi-2022a', '4.6.1-gompi-2023a' %}
 {% set fc = 'ifort', 'ifort', 'gfortran' %}
-{% set N = toolchain_name | length %}
 {% set topnet_src = '/nesi/nobackup/pletzera/topnet-code/topnet-merge_TOP-83_Evap_with_ETI_Snow-GW_ap_pointer/' %}
 {% set build_dir = '/nesi/nobackup/pletzera/topnet_runs' %}
+
+{% set N = toolchain_name | length %}
 
 [scheduling]
   [[graph]]
@@ -22,12 +22,12 @@
   [[build_{{ I }}]]
     script = """
       cd {{ build_dir }}
-      bdir={{ toolchain_name[I] }}-{{toolchain_version[I] }}
+      bdir={{ toolchain_name[I] }}
       rm -rf $bdir
       mkdir -p $bdir
       cd $bdir
       module load CMake
-      module load "{{ toolchain_name[I] }}/{{toolchain_version[I] }}"
+      module load netCDF-Fortran/{{ toolchain_name[I] }}
       FC={{ fc[I] }} cmake {{ topnet_src }}
       make clean
       make
