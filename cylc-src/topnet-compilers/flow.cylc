@@ -4,6 +4,7 @@
 {% set fc = 'ifort', 'ifort', 'gfortran' %}
 {% set topnet_src = '/nesi/nobackup/pletzera/topnet-code/topnet-merge_TOP-83_Evap_with_ETI_Snow-GW_ap_pointer/' %}
 {% set build_dir = '/nesi/nobackup/pletzera/topnet_runs' %}
+{% set input_dir = '/nesi/nobackup/pletzera/topnet_2024/runs/zammit/latest-intel-milan/' %}
 
 {% set N = toolchain_name | length %}
 
@@ -36,6 +37,16 @@
   [[run_{{ I }}]]
     platform = mahuika-slurm
     script = """
+cd {{ build_dir }}/{{ toolchain_name[I] }}
+rm -rf run
+mkdir run
+cd run
+cp {{ input_dir }}/io_paths.nml .
+cp {{ input_dir }}/test.nml .
+
+module load netCDF-Fortran/{{ toolchain_name[I] }}
+
+{{ build_dir }}/{{ toolchain_name[I] }}/source/topnet test.nml >& topnet-out.txt
     """
     [[[directives]]]
       --time = 00:10:00
