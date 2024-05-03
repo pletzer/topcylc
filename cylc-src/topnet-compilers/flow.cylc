@@ -5,14 +5,17 @@
 {% set topnet_src = '/nesi/nobackup/pletzera/topnet-code/topnet-merge_TOP-83_Evap_with_ETI_Snow-GW_ap_pointer/' %}
 {% set build_dir = '/nesi/nobackup/pletzera/topnet_runs' %}
 {% set input_dir = '/nesi/nobackup/pletzera/topnet_2024/runs/zammit/latest-intel-milan/' %}
-{% set reference_dir = '/nesi/nobackup/pletzera/topnet_runs/reference' %}
 {% set N = toolchain_name | length %}
 
 [scheduling]
   [[graph]]
     R1 = """
 {% for I in range(N) %}
-     build_{{ I }} => run_{{ I }} => check_{{ I }}
+     build_{{ I }} => run_{{ I }} 
+{% endfor %}
+# reference run
+{% for I in range(1, N) %}
+     run_0 & run_{{ I }} => check_{{ I }}
 {% endfor %}
   """
 
@@ -53,14 +56,16 @@ module load netCDF-Fortran/{{ toolchain_name[I] }}
 
   [[check_{{ I }}]]
     script = """
-cd {{ build_dir }}/{{ toolchain_name[I] }}
+cd {{ build_dir }}/{{ toolchain_name[I] }}/run
 module load Python
 
 python {{ build_dir }}/{{ toolchain_name[I] }}/scripts/plot_tseries.py -n output/tseries*.nc -v mod_streamq -o mod_streamq.png >& plot_tseries-out.txt
 
 # get the checksum
 checksum=$(cat plot_tseries-out.txt | perl -ne 'if(/checksum\:\s*([^\s]*)/){print $1;}')
-ref_checksum="(cat {{ reference_dir }}/tseries-out.txt | perl -ne 'if(/checksum\:\s*([^\s]*)/){print $1;}')"
+
+# use the first run as reference
+ref_checksum="(cat {{ build_dir }}/{{ toolchain_name[0] }}/run/output/tseries-out.txt | perl -ne 'if(/checksum\:\s*([^\s]*)/){print $1;}')"
 
 # compare checksum
 python -c "diff = abs(${checksum} - ${ref_checksum});if diff > 1.e10:print('FAIL')"
