@@ -53,6 +53,7 @@ module load netCDF-Fortran/{{ toolchain_name[I] }}
     """
     [[[directives]]]
       --time = 00:20:00
+      --mem = 5g
 
   [[check_{{ I }}]]
     script = """
