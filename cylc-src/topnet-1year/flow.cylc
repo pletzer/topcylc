@@ -48,12 +48,12 @@ cp {{ input_dir }}/io_paths.nml .
 cp {{ input_dir }}/1year.nml .
 mkdir output restart
 module load netCDF-Fortran/{{ toolchain_name[I] }}
-
-{{ build_dir }}/{{ toolchain_name[I] }}/source/topnet 1year.nml >& topnet-out.txt
+module load forge
+map --profile {{ build_dir }}/{{ toolchain_name[I] }}/source/topnet 1year.nml >& topnet-out.txt
     """
     [[[directives]]]
       --time = 12:00:00
-      --mem = 20g
+      --mem = 5g
 {% if toolchain_name[I] != '4.4.4-intel-2017a' %}
       --partition = milan
 {% endif %}
