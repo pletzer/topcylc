@@ -74,7 +74,7 @@ python {{ topnet_src }}/scripts/plot_tseries.py -n {{ build_dir }}/{{ toolchain_
 cat plot_tseries-out-ref.txt
 
 # get the reference checksum
-ref_checksum="(cat plot_tseries-out-ref.txt | perl -ne 'if(/checksum\:\s*([^\s]*)/){print $1;}')"
+ref_checksum="$(cat plot_tseries-out-ref.txt | perl -ne 'if(/checksum\:\s*([^\s]*)/){print $1;}')"
 
 cat > compare_checksums.py << EOF
 import sys
