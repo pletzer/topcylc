@@ -30,8 +30,9 @@
       rm -rf $bdir
       mkdir -p $bdir
       cd $bdir
-      module load CMake
+      module purge
       module load netCDF-Fortran/{{ toolchain_name[I] }}
+      module load CMake
       FC={{ fc[I] }} cmake {{ topnet_src }}
       make clean
       make
@@ -47,6 +48,7 @@ cd run
 cp {{ input_dir }}/io_paths.nml .
 cp {{ input_dir }}/test.nml .
 mkdir output restart
+module purge
 module load netCDF-Fortran/{{ toolchain_name[I] }}
 
 {{ build_dir }}/{{ toolchain_name[I] }}/source/topnet test.nml >& topnet-out.txt
@@ -58,6 +60,7 @@ module load netCDF-Fortran/{{ toolchain_name[I] }}
   [[check_{{ I }}]]
     script = """
 cd {{ build_dir }}/{{ toolchain_name[I] }}/run
+module purge
 module load Python
 
 python {{ topnet_src }}/scripts/plot_tseries.py -n output/tseries*.nc -v mod_streamq -o mod_streamq.png >& plot_tseries-out.txt
