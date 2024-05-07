@@ -1,0 +1,105 @@
+#!jinja2
+
+{% set toolchain_name = '4.4.4-intel-2017a', '4.6.0-iimpi-2022a', '4.6.1-gompi-2023a' %}
+{% set fc = 'ifort', 'ifort', 'gfortran' %}
+{% set topnet_src = '/nesi/nobackup/pletzera/topnet-code/topnet-merge_TOP-83_Evap_with_ETI_Snow-GW_ap_io/' %}
+{% set build_dir = '/nesi/nobackup/pletzera/topnet_runs/topnet-clarence-2th-openmp' %}
+{% set input_dir = '/nesi/nobackup/pletzera/topnet_2024/runs/Clarence/input_data' %}
+{% set N = toolchain_name | length %}
+
+[scheduling]
+  [[graph]]
+    R1 = """
+{% for I in range(N) %}
+     build_{{ I }} => run_{{ I }}
+{% endfor %}
+# reference run
+{% for I in range(1, N) %}
+     run_0 & run_{{ I }} => check_{{ I }}
+{% endfor %}
+  """
+
+[runtime]
+
+{% for I in range(N) %}
+
+  [[build_{{ I }}]]
+    script = """
+      mkdir -p {{ build_dir }}
+      cd {{ build_dir }}
+      bdir={{ toolchain_name[I] }}
+      rm -rf $bdir
+      mkdir -p $bdir
+      cd $bdir
+      module purge
+      module load CMake
+      module load netCDF-Fortran/{{ toolchain_name[I] }}
+      FC={{ fc[I] }} cmake -D ENABLE_OPENMP=ON {{ topnet_src }}
+      make clean
+      make
+    """
+
+  [[run_{{ I }}]]
+    platform = mahuika-slurm
+    script = """
+bdir={{ build_dir }}/{{ toolchain_name[I] }}
+cd $bdir
+rm -rf run
+mkdir run
+cd run
+cp {{ input_dir }}/io_paths.nml .
+cp {{ input_dir }}/topnet_info_13000000-CL_2000.nml .
+mkdir output restart
+module purge
+module load netCDF-Fortran/{{ toolchain_name[I] }}
+module load forge
+map --profile $bdir/source/topnet topnet_info_13000000-CL_2000.nml >& topnet-out.txt
+    """
+    [[[directives]]]
+      --time = 01:00:00
+      --mem = 5g
+      --cpus-per-task = 2
+      --hint=multithread
+{% if toolchain_name[I] != '4.4.4-intel-2017a' %}
+      --partition = milan
+{% endif %}
+
+  [[check_{{ I }}]]
+    script = """
+bdir={{ build_dir }}/{{ toolchain_name[I] }}
+cd $bdir/run
+module purge
+module load Python
+
+python {{ topnet_src }}/scripts/plot_tseries.py -n output/tseries*.nc -v mod_streamq -o mod_streamq.png >& plot_tseries-out.txt
+cat plot_tseries-out.txt
+
+# get the checksum
+checksum=$(cat plot_tseries-out.txt | perl -ne 'if(/checksum\:\s*([^\s]*)/){print $1;}')
+
+# use the first run as reference
+python {{ topnet_src }}/scripts/plot_tseries.py -n {{ build_dir }}/{{ toolchain_name[0] }}/run/output/tseries*.nc -v mod_streamq -o mod_streamq.png >& plot_tseries-out-ref.txt
+cat plot_tseries-out-ref.txt
+
+# get the reference checksum
+ref_checksum="$(cat plot_tseries-out-ref.txt | perl -ne 'if(/checksum\:\s*([^\s]*)/){print $1;}')"
+
+cat > compare_checksums.py << EOF
+import sys
+
+diff = ${checksum} - ${ref_checksum}
+rel_tol = 0.10
+print(f'diff = {diff}')
+if abs(diff) > rel_tol * abs(${checksum}):
+    print(f'abs(diff) = {abs(diff)} > {rel_tol} * {abs(${checksum})} = {rel_tol * abs(${checksum})}')
+    print('FAILURE')
+    sys.exit(1)
+else:
+    print('SUCCESS')
+    sys.exit(0)
+EOF
+
+# compare checksums
+python compare_checksums.py
+    """
+{% endfor %}
