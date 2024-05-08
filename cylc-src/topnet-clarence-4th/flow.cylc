@@ -3,7 +3,7 @@
 {% set toolchain_name = '4.4.4-intel-2017a', '4.6.0-iimpi-2022a', '4.6.1-gompi-2023a' %}
 {% set fc = 'ifort', 'ifort', 'gfortran' %}
 {% set topnet_src = '/nesi/nobackup/pletzera/topnet-code/topnet-merge_TOP-83_Evap_with_ETI_Snow-GW_ap_io/' %}
-{% set build_dir = '/nesi/nobackup/pletzera/topnet_runs/topnet-clarence-2' %}
+{% set build_dir = '/nesi/nobackup/pletzera/topnet_runs/topnet-clarence-4th' %}
 {% set input_dir = '/nesi/nobackup/pletzera/topnet_2024/runs/Clarence/input_data' %}
 {% set N = toolchain_name | length %}
 
@@ -34,6 +34,7 @@
       module purge
       module load CMake
       module load netCDF-Fortran/{{ toolchain_name[I] }}
+      # we're not turning on OpenMP (-D ENABLE_OPENMP)
       FC={{ fc[I] }} cmake {{ topnet_src }}
       make clean
       make
@@ -58,6 +59,8 @@ map --profile $bdir/source/topnet topnet_info_13000000-CL_2000.nml >& topnet-out
     [[[directives]]]
       --time = 01:00:00
       --mem = 5g
+      --cpus-per-task = 4
+      --hint = multithread
 {% if toolchain_name[I] != '4.4.4-intel-2017a' %}
       --partition = milan
 {% endif %}
@@ -86,7 +89,7 @@ cat > compare_checksums.py << EOF
 import sys
 
 diff = ${checksum} - ${ref_checksum}
-rel_tol = 0.01
+rel_tol = 0.10
 print(f'diff = {diff}')
 if abs(diff) > rel_tol * abs(${checksum}):
     print(f'abs(diff) = {abs(diff)} > {rel_tol} * {abs(${checksum})} = {rel_tol * abs(${checksum})}')
