@@ -1,0 +1,111 @@
+#!jinja2
+
+{% set toolchain_name = '4.6.0-iimpi-2022a' %}
+{% set fc = 'ifort' %}
+{% set topnet_src = '/nesi/nobackup/pletzera/topnet-code/topnet-merge_TOP-83_Evap_with_ETI_Snow-GW_ap_io/' %}
+{% set build_dir = '/nesi/nobackup/pletzera/topnet_runs/topnet-clarence-stats' %}
+{% set input_dir = '/nesi/nobackup/pletzera/topnet_2024/runs/Clarence/input_data' %}
+
+[task parameters]
+    m = 1..3
+
+[scheduling]
+  [[graph]]
+    R1 = """
+     build => run<m> => analyse
+  """
+
+[runtime]
+
+  [[build]]
+    script = """
+      mkdir -p {{ build_dir }}
+      cd {{ build_dir }}
+      bdir={{ toolchain_name }}
+      rm -rf $bdir
+      mkdir -p $bdir
+      cd $bdir
+      module purge
+      module load CMake
+      module load netCDF-Fortran/{{ toolchain_name }}
+      FC={{ fc }} cmake {{ topnet_src }}
+      make clean
+      make
+    """
+
+  [[run<m>]]
+    platform = mahuika-slurm
+    script = """
+bdir={{ build_dir }}/{{ toolchain_name }}
+cd $bdir
+rm -rf run
+mkdir run
+cd run
+cp {{ input_dir }}/io_paths.nml .
+cp {{ input_dir }}/topnet_info_13000000-CL_2000.nml .
+mkdir output restart
+module purge
+module load netCDF-Fortran/{{ toolchain_name }}
+$bdir/source/topnet topnet_info_13000000-CL_2000.nml >& topnet-out.txt
+    """
+    [[[directives]]]
+      --time = 00:20:00
+      --mem = 5g
+{% if toolchain_name != '4.4.4-intel-2017a' %}
+      --partition = milan
+{% endif %}
+
+  [[analyse]]
+    platform = localhost
+    script = """
+        ranstr=$(echo $RANDOM | md5sum | head -c 20)
+        tablename="table-${ranstr}.txt"
+        sqlite3 $CYLC_WORKFLOW_RUN_DIR/log/db "select job_id, cycle, name, submit_num, time_run, time_run_exit from task_jobs;" > $tablename
+        cat $tablename
+
+    # create analyse.R script
+cat > analyse.R << EOF
+library(ggplot2)
+
+args <- commandArgs(trailingOnly=TRUE)
+
+tablename <- "table.txt"
+if (length(args) >= 1) {
+  tablename <- args[1]
+}
+
+data <- read.csv(tablename, sep='|', head=FALSE)
+print(data)
+
+# manually assigning column names
+colnames(data) <- c('job_id', 'cycle', 'method', 'submit_num', 'start_time', 'end_time')
+
+# remove rows we are not interested in
+d2 <- data[!(rownames(data) %in% c('analyse')),]
+print(d2)
+
+# turn the strings into date time objects
+start_time <- as.POSIXct(d2$start_time, format="%Y-%m-%dT%H:%M:%S")
+end_time <- as.POSIXct(d2$end_time, format="%Y-%m-%dT%H:%M:%S")
+
+# compute the execution time
+d2$exec_time <- as.numeric(end_time - start_time) # in sec
+
+# plot
+p <- ggplot(d2, aes(x=job_id, y=exec_time, fill=method)) + geom_bar(stat = "identity")
+p + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + ggtitle("exec time")
+
+# save
+top_dir <- Sys.getenv({{ build_dir }}, unset = '.')
+filename <- paste0(top_dir, '/results.png')
+ggsave(filename, device = 'png')
+
+resultfile <- paste0(top_dir, '/results.csv')
+write.csv(d2, resultfile)
+EOF
+        # create plot
+        cp analyse.R {{ build_dir }}
+        module purge
+        module load R
+        Rscript analyse.R $tablename
+        """
