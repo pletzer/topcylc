@@ -1,8 +1,9 @@
 #!jinja2
-{% set NTHREADS = 1, 2, 3 %}
+{% set NTHREADS = 1, 2, 2 %}
 {% set HINT = "multithread", "multithread", "nomultithread" %}
 {% set N = NTHREADS | length %}
-{% set M = 3 %}
+# number of runs
+{% set M = 2 %}
 {% set toolchain_name = '4.6.0-iimpi-2022a' %}
 {% set fc = 'ifort' %}
 {% set topnet_src = '/nesi/nobackup/pletzera/topnet-code/topnet-merge_TOP-83_Evap_with_ETI_Snow-GW_ap_io/' %}
@@ -26,15 +27,15 @@
       mkdir -p {{ build_dir }}
       cd {{ build_dir }}
       bdir={{ toolchain_name }}
-      rm -rf $bdir
-      mkdir -p $bdir
-      cd $bdir
-      module purge
-      module load CMake
-      module load netCDF-Fortran/{{ toolchain_name }}
-      FC={{ fc }} cmake {{ topnet_src }}
-      make clean
-      make
+      #rm -rf $bdir
+      #mkdir -p $bdir
+      #cd $bdir
+      #module purge
+      #module load CMake
+      #module load netCDF-Fortran/{{ toolchain_name }}
+      #FC={{ fc }} cmake {{ topnet_src }}
+      #make clean
+      #make
     """
 
 {% for I in range(N) %}
@@ -48,9 +49,13 @@ bdir={{ build_dir }}/{{ toolchain_name }}
 cd $bdir
 echo "now in $bdir"
 
-rm -rf run
-mkdir -p run/{{ I }}_{{ J }}
-cd run/{{ I }}_{{ J }}
+sdir1="{{ NTHREADS[I] }}threads"
+sdir2="{{ HINT[I] }}"
+sdir3="_run{{ J }}"
+
+rm -rf run/${sdir1}_${sdir2}/$sdir3
+mkdir -p run/${sdir1}_${sdir2}/$sdir3
+cd run/${sdir1}_${sdir2}/$sdir3
 echo "now in $PWD"
 
 cp {{ input_dir }}/io_paths.nml .
@@ -77,12 +82,22 @@ $bdir/source/topnet topnet_info_13000000-CL_2000.nml >& topnet-out.txt
   [[analyse]]
     platform = localhost
     script = """
+
+        cd {{ build_dir }}/{{ toolchain_name }}/run
+
+	# generate execution time table
         ranstr=$(echo $RANDOM | md5sum | head -c 20)
         tablename="table-${ranstr}.txt"
         sqlite3 $CYLC_WORKFLOW_RUN_DIR/log/db "select job_id, cycle, name, submit_num, time_run, time_run_exit from task_jobs;" > $tablename
         cat $tablename
+    """
 
-    # create analyse.R script
+  [[x]]
+     platform = localhost
+     script = """
+
+
+        # create analyse.R script
 cat > analyse.R << EOF
 library(ggplot2)
 
@@ -123,7 +138,6 @@ resultfile <- paste0(top_dir, '/results.csv')
 write.csv(d2, resultfile)
 EOF
         # create plot
-        cp analyse.R {{ build_dir }}
         module purge
         module load R
         Rscript analyse.R $tablename
